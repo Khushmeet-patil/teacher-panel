@@ -3,6 +3,15 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import { ChevronLeft, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Practical {
   id: string;
@@ -12,14 +21,11 @@ interface Practical {
   status: "submitted" | "completed" | "rejected";
   marks?: number | null;
   remarks?: string | null;
-  student_id?: string;
 }
 
 interface Subject {
   id: string;
   name: string;
-  num_practicals: number;
-  num_group_projects: number;
 }
 
 export default function StudentPracticalDetailsPage() {
@@ -29,8 +35,8 @@ export default function StudentPracticalDetailsPage() {
     subjectId: string;
   };
   const router = useRouter();
-  
-  // State management
+  const { toast } = useToast();
+
   const [practicals, setPracticals] = useState<Practical[]>([]);
   const [subject, setSubject] = useState<Subject | null>(null);
   const [studentName, setStudentName] = useState<string>("");
@@ -39,15 +45,14 @@ export default function StudentPracticalDetailsPage() {
   const [successMessage, setSuccessMessage] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  
-  // Selected practical for grading
+
   const [selectedPractical, setSelectedPractical] = useState<Practical | null>(null);
   const [status, setStatus] = useState<"submitted" | "completed" | "rejected">("submitted");
   const [marks, setMarks] = useState<number | undefined>(undefined);
   const [remarks, setRemarks] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ marks?: string; remarks?: string }>({});
 
-  // Load token from localStorage only on the client side
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedToken = localStorage.getItem("token");
@@ -58,81 +63,73 @@ export default function StudentPracticalDetailsPage() {
     }
   }, [router]);
 
-  // Fetch data once token is available
   useEffect(() => {
     if (!token || !studentId || !classId || !subjectId) return;
 
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
-        // Fetch student info
+        // Fetch student information
         const studentRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/students/${classId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-        
-        if (!studentRes.ok) {
-          throw new Error("Failed to fetch student information");
-        }
-        
+        if (!studentRes.ok) throw new Error("Failed to fetch student information");
         const studentsData = await studentRes.json();
         const student = studentsData.find((s: any) => s.id === studentId);
-        
-        if (!student) {
-          throw new Error("Student not found");
-        }
-        
+        if (!student) throw new Error("Student not found in this class");
         setStudentName(student.name);
-        
-        // Fetch subject info
+
+        // Fetch subject information (note: this endpoint might not exist; adjust if needed)
         const subjectRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/subjects/${subjectId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-        
         if (!subjectRes.ok) {
-          throw new Error("Failed to fetch subject information");
+          const errorData = await subjectRes.json();
+          throw new Error(errorData.error || "Failed to fetch subject information");
         }
-        
-        const subjectData = await subjectRes.json();
+        const subjectsData = await subjectRes.json();
+        const subjectData = Array.isArray(subjectsData) ? subjectsData[0] : subjectsData;
         setSubject(subjectData);
-        
-        // Fetch practicals
+
+        // Fetch practical submissions
         const practicalsRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/submissions/${studentId}/${classId}/${subjectId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-        
         if (!practicalsRes.ok) {
-          throw new Error("Failed to fetch practical submissions");
+          const errorData = await practicalsRes.json();
+          if (practicalsRes.status === 403) {
+            throw new Error("You are not authorized to view this student’s practicals. Check your class and batch assignments.");
+          }
+          throw new Error(errorData.error || "Failed to fetch practical submissions");
         }
-        
         const practicalsData = await practicalsRes.json();
         setPracticals(practicalsData);
       } catch (err) {
-        console.error("Error fetching data:", err);
         setError(err instanceof Error ? err.message : "An unknown error occurred");
+        toast({
+          title: "Error",
+          description: err instanceof Error ? err.message : "Failed to load data",
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
-  }, [studentId, classId, subjectId, token, router]);
+  }, [studentId, classId, subjectId, token, router, toast]);
 
   const openGradingModal = (practical: Practical) => {
     setSelectedPractical(practical);
-    setStatus(practical.status as "submitted" | "completed" | "rejected");
+    setStatus(practical.status);
     setMarks(practical.marks || undefined);
     setRemarks(practical.remarks || "");
+    setFormErrors({});
     setModalOpen(true);
   };
 
@@ -142,43 +139,34 @@ export default function StudentPracticalDetailsPage() {
     setStatus("submitted");
     setMarks(undefined);
     setRemarks("");
+    setFormErrors({});
+  };
+
+  const validateForm = () => {
+    const errors: { marks?: string; remarks?: string } = {};
+    if (status === "completed" && (marks === undefined || marks === null || isNaN(Number(marks)) || marks < 0 || marks > 100)) {
+      errors.marks = "Please enter valid marks (0-100) for completed status.";
+    }
+    if (status === "rejected" && (!remarks || remarks.trim() === "")) {
+      errors.remarks = "Please enter remarks for rejected status.";
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSavePractical = async () => {
-    if (!selectedPractical) return;
-    
+    if (!selectedPractical || !validateForm()) return;
+
     setIsSubmitting(true);
     setError(null);
-    
+
     try {
-      if (!token) {
-        throw new Error("No authentication token found. Please log in again.");
-      }
-      
-      // Validate the inputs based on status
-      if (status === "completed" && (marks === undefined || marks === null || isNaN(Number(marks)))) {
-        throw new Error("Please enter valid marks for completed status.");
-      }
-      
-      if (status === "rejected" && (!remarks || remarks.trim() === "")) {
-        throw new Error("Please enter remarks explaining the rejection.");
-      }
-      
-      const requestBody: {
-        status: string;
-        marks?: number;
-        remarks?: string;
-      } = { status };
-      
-      // Only include marks and remarks when relevant
-      if (status === "completed") {
-        requestBody.marks = Number(marks);
-      } else if (status === "rejected") {
-        requestBody.remarks = remarks;
-      }
-      
-      console.log("Sending update request:", requestBody);
-      
+      if (!token) throw new Error("No authentication token found. Please log in again.");
+
+      const requestBody: { status: string; marks?: number; remarks?: string } = { status };
+      if (status === "completed") requestBody.marks = Number(marks);
+      if (status === "rejected") requestBody.remarks = remarks;
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/submission/${selectedPractical.id}`,
         {
@@ -191,275 +179,240 @@ export default function StudentPracticalDetailsPage() {
         }
       );
 
-      // Handle non-OK responses
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `Server responded with status: ${response.status}`);
       }
 
       const updatedPractical = await response.json();
-      
-      // Update the practicals list with the updated practical
-      setPracticals(currentPracticals => 
-        currentPracticals.map(p => 
-          p.id === selectedPractical.id ? { ...p, ...updatedPractical } : p
-        )
+      setPracticals((currentPracticals) =>
+        currentPracticals.map((p) => (p.id === selectedPractical.id ? { ...p, ...updatedPractical } : p))
       );
-      
-      // Show success message
       setSuccessMessage("Practical updated successfully!");
       setTimeout(() => setSuccessMessage(""), 3000);
-      
-      // Close the modal
       closeModal();
+      toast({
+        title: "Success",
+        description: "Practical updated successfully",
+      });
     } catch (err) {
-      console.error("Error updating practical:", err);
       setError(err instanceof Error ? err.message : "An unknown error occurred");
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update practical",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Early return during SSR or if no token is present
-  if (token === null) {
-    return null; // Render nothing until token is loaded on client
-  }
+  if (token === null) return null;
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p>
-          Please <Link href="/login" className="text-indigo-600 hover:underline">log in</Link> to view student practicals.
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">
+          Please <Link href="/login" className="text-primary hover:underline">log in</Link> to view student practicals.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-indigo-700 p-4 text-white sticky top-0 z-10 shadow-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Teacher Portal</h1>
-          <div className="flex items-center space-x-8">
-            <Link href="/dashboard" className="hover:text-indigo-100">Dashboard</Link>
-            <button
-              onClick={() => {
-                localStorage.clear();
-                router.push("/login");
-              }}
-              className="bg-white text-indigo-700 px-5 py-2.5 rounded-lg hover:bg-indigo-50"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
-
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-6 py-12">
-        <div className="flex items-center mb-8">
-          <button 
-            onClick={() => router.back()} 
-            className="mr-4 bg-gray-200 hover:bg-gray-300 p-2 rounded-full"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h2 className="text-3xl font-bold text-gray-800">
-            {studentName}'s {subject?.name || "Subject"} Practicals
-          </h2>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="space-y-8"
+        >
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.back()} className="hover:bg-muted">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h2 className="text-3xl font-bold text-foreground">
+                {studentName}'s <span className="text-primary">{subject?.name || "Subject"}</span> Practicals
+              </h2>
+              <p className="text-muted-foreground">Review and grade student submissions</p>
+            </div>
+          </div>
 
-        {/* Success message */}
-        {successMessage && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
-            {successMessage}
-          </div>
-        )}
+          {successMessage && (
+            <Alert variant="default" className="bg-green-50 border-green-200 text-green-800">
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* Error message */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-            Error: {error}
-          </div>
-        )}
+          {error && (
+            <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-800">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-          </div>
-        ) : (
-          <div className="bg-white shadow-md rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Practical Name
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Submitted At
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    GitHub Link
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Marks
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {practicals.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                      No practical submissions found.
-                    </td>
-                  </tr>
-                ) : (
-                  practicals.map((practical) => (
-                    <tr key={practical.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{practical.name}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {new Date(practical.submitted_at).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <a
-                          href={practical.github_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:underline text-sm"
-                        >
-                          View Code
-                        </a>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            practical.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : practical.status === "rejected"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {practical.status === "completed"
-                            ? "Completed"
-                            : practical.status === "rejected"
-                            ? "Rejected"
-                            : "Submitted"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {practical.status === "completed" ? `${practical.marks}/100` : "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => openGradingModal(practical)}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          Grade
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Card className="border-none shadow-md">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Practical</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Submitted</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">GitHub</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Marks</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-muted">
+                      {practicals.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-4 text-center text-muted-foreground">
+                            No practical submissions found.
+                          </td>
+                        </tr>
+                      ) : (
+                        practicals.map((practical) => (
+                          <motion.tr
+                            key={practical.id}
+                            whileHover={{ backgroundColor: "hsl(var(--muted) / 0.3)" }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">{practical.name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                              {new Date(practical.submitted_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <a
+                                href={practical.github_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline text-sm"
+                              >
+                                View Code
+                              </a>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  practical.status === "completed"
+                                    ? "bg-green-100 text-green-800"
+                                    : practical.status === "rejected"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}
+                              >
+                                {practical.status.charAt(0).toUpperCase() + practical.status.slice(1)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                              {practical.status === "completed" && practical.marks !== null ? `${practical.marks}/100` : "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openGradingModal(practical)}
+                                className="text-primary hover:text-primary/80"
+                              >
+                                Grade
+                              </Button>
+                            </td>
+                          </motion.tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </motion.div>
       </div>
 
-      {/* Grading Modal */}
       {modalOpen && selectedPractical && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-xl shadow-2xl max-w-lg w-full">
-            <h3 className="text-2xl font-bold mb-4">Grade Practical: {selectedPractical.name}</h3>
-            
-            {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-background p-6 rounded-xl shadow-2xl max-w-md w-full"
+          >
+            <h3 className="text-xl font-bold text-foreground mb-4">Grade: {selectedPractical.name}</h3>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="text-foreground">Status</Label>
+                <Select value={status} onValueChange={(value) => setStatus(value as "submitted" | "completed" | "rejected")}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            
-            <div className="mb-4">
-              <label className="block text-gray-700 font-medium mb-2">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as "submitted" | "completed" | "rejected")}
-                className="w-full p-3 border rounded-lg bg-white"
-              >
-                <option value="submitted">Submitted</option>
-                <option value="completed">Completed</option>
-                <option value="rejected">Rejected</option>
-              </select>
+
+              {status === "completed" && (
+                <div>
+                  <Label className="text-foreground">Marks (0-100)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={marks ?? ""}
+                    onChange={(e) => setMarks(e.target.value ? Number(e.target.value) : undefined)}
+                    className={`mt-1 ${formErrors.marks ? "border-destructive" : ""}`}
+                  />
+                  {formErrors.marks && <p className="text-destructive text-sm mt-1">{formErrors.marks}</p>}
+                </div>
+              )}
+
+              {status === "rejected" && (
+                <div>
+                  <Label className="text-foreground">Remarks</Label>
+                  <textarea
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    className={`mt-1 w-full p-2 border rounded-lg focus:ring-primary focus:border-primary h-24 ${formErrors.remarks ? "border-destructive" : ""}`}
+                    placeholder="Explain why this practical is rejected..."
+                  />
+                  {formErrors.remarks && <p className="text-destructive text-sm mt-1">{formErrors.remarks}</p>}
+                </div>
+              )}
+
+              {error && (
+                <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-800">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
             </div>
-            
-            {status === "completed" && (
-              <div className="mb-4">
-                <label className="block text-gray-700 font-medium mb-2">Marks (out of 100)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={marks || ""}
-                  onChange={(e) => setMarks(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full p-3 border rounded-lg"
-                  required
-                />
-              </div>
-            )}
-            
-            {status === "rejected" && (
-              <div className="mb-4">
-                <label className="block text-gray-700 font-medium mb-2">Remarks</label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  className="w-full p-3 border rounded-lg h-32"
-                  placeholder="Explain why this practical is being rejected..."
-                  required
-                />
-              </div>
-            )}
-            
-            <div className="flex justify-end space-x-4 mt-6">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-300"
-                disabled={isSubmitting}
-              >
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="outline" onClick={closeModal} disabled={isSubmitting}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSavePractical}
-                className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700"
-                disabled={isSubmitting}
-              >
+              </Button>
+              <Button onClick={handleSavePractical} disabled={isSubmitting} className="bg-primary hover:bg-primary/90">
                 {isSubmitting ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
-                  </span>
+                  </>
                 ) : (
                   "Save"
                 )}
-              </button>
+              </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

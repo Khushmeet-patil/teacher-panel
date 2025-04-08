@@ -47,21 +47,21 @@ export default function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClo
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-center">Teacher Login</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-center text-foreground">Teacher Login</DialogTitle>
         </DialogHeader>
 
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-foreground">Email</Label>
             <Input
               id="email"
               type="email"
@@ -69,11 +69,12 @@ export default function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClo
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="border-input focus:ring-primary"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-foreground">Password</Label>
             <Input
               id="password"
               type="password"
@@ -81,10 +82,11 @@ export default function LoginModal({ isOpen, onClose }: { isOpen: boolean; onClo
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="border-input focus:ring-primary"
             />
           </div>
 
-          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
             {isLoading ? "Logging in..." : "Login"}
           </Button>
         </form>
