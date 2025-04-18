@@ -28,6 +28,11 @@ interface Subject {
   name: string;
 }
 
+interface Student {
+  name: string;
+  gender?: string;
+}
+
 export default function StudentPracticalDetailsPage() {
   const { studentId, classId, subjectId } = useParams() as {
     studentId: string;
@@ -39,7 +44,7 @@ export default function StudentPracticalDetailsPage() {
 
   const [practicals, setPracticals] = useState<Practical[]>([]);
   const [subject, setSubject] = useState<Subject | null>(null);
-  const [studentName, setStudentName] = useState<string>("");
+  const [student, setStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string>("");
@@ -71,18 +76,16 @@ export default function StudentPracticalDetailsPage() {
       setError(null);
 
       try {
-        // Fetch student information
         const studentRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/students/${classId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (!studentRes.ok) throw new Error("Failed to fetch student information");
         const studentsData = await studentRes.json();
-        const student = studentsData.find((s: any) => s.id === studentId);
-        if (!student) throw new Error("Student not found in this class");
-        setStudentName(student.name);
+        const studentData = studentsData.find((s: any) => s.id === studentId);
+        if (!studentData) throw new Error("Student not found in this class");
+        setStudent({ name: studentData.name, gender: studentData.gender });
 
-        // Fetch subject information (note: this endpoint might not exist; adjust if needed)
         const subjectRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/subjects/${subjectId}`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -95,7 +98,6 @@ export default function StudentPracticalDetailsPage() {
         const subjectData = Array.isArray(subjectsData) ? subjectsData[0] : subjectsData;
         setSubject(subjectData);
 
-        // Fetch practical submissions
         const practicalsRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/user/teacher/submissions/${studentId}/${classId}/${subjectId}`,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -103,7 +105,7 @@ export default function StudentPracticalDetailsPage() {
         if (!practicalsRes.ok) {
           const errorData = await practicalsRes.json();
           if (practicalsRes.status === 403) {
-            throw new Error("You are not authorized to view this student’s practicals. Check your class and batch assignments.");
+            throw new Error("You are not authorized to view this student’s practicals.");
           }
           throw new Error(errorData.error || "Failed to fetch practical submissions");
         }
@@ -234,7 +236,7 @@ export default function StudentPracticalDetailsPage() {
             </Button>
             <div>
               <h2 className="text-3xl font-bold text-foreground">
-                {studentName}'s <span className="text-primary">{subject?.name || "Subject"}</span> Practicals
+                {student?.name || "Student"}'s <span className="text-primary">{subject?.name || "Subject"}</span> Practicals
               </h2>
               <p className="text-muted-foreground">Review and grade student submissions</p>
             </div>

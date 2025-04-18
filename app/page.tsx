@@ -1,70 +1,76 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import LoginModal from "@/components/login-modal"
-import { motion } from "framer-motion"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import LoginModal from "@/components/login-modal";
+import { motion } from "framer-motion";
 
 export default function Home() {
-  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-background">
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-100 text-gray-900">
+      {/* Header */}
+      <header className="bg-white shadow-md sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/placeholder.svg?height=40&width=40" alt="Logo" width={40} height={40} className="rounded-full" />
-            <h1 className="text-2xl font-bold text-primary">EduTrack</h1>
+            <h1 className="text-2xl font-semibold text-blue-600">EduTrack</h1>
           </div>
-          <Button onClick={() => setShowLoginModal(true)} className="bg-primary hover:bg-primary/90">
+          <Button
+            onClick={() => setShowLoginModal(true)}
+            className="bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
             Teacher Login
           </Button>
         </div>
       </header>
 
-      <section className="container mx-auto px-6 py-20 md:py-32 flex flex-col md:flex-row items-center gap-12">
+      {/* Hero Section */}
+      <section className="container mx-auto px-6 py-20 flex flex-col items-center text-center">
         <motion.div
-          className="flex-1 space-y-6"
+          className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">
-            Elevate Your <span className="text-primary">Teaching</span> Journey
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-800">
+            Empower Your <span className="text-blue-600">Teaching Workflow</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-md">
-            Seamlessly manage classes, track student progress, and grade practicals with ease.
+          <p className="text-lg text-gray-600 max-w-2xl">
+            Efficiently review student practicals, assign marks, and explore GitHub-hosted code submissions—all in one intuitive platform.
           </p>
-          <Button onClick={() => setShowLoginModal(true)} size="lg" className="bg-primary hover:bg-primary/90">
-            Start Now
+          <Button
+            onClick={() => setShowLoginModal(true)}
+            size="lg"
+            className="bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
+            Get Started
           </Button>
-        </motion.div>
-        <motion.div
-          className="flex-1"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <Image
-            src="/placeholder.svg?height=400&width=500"
-            alt="Teacher Dashboard"
-            width={500}
-            height={400}
-            className="rounded-xl shadow-2xl"
-          />
         </motion.div>
       </section>
 
-      <section className="bg-muted py-20">
+      {/* Features Section */}
+      <section className="bg-white py-20">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl font-bold text-center mb-12 text-foreground">Why EduTrack?</h2>
+          <h2 className="text-3xl font-semibold text-center mb-12 text-gray-800">Key Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { title: "Organized Management", description: "Effortlessly handle departments and classes.", icon: "📚" },
-              { title: "Student Insights", description: "Real-time tracking of student submissions.", icon: "👩‍🎓" },
-              { title: "Efficient Grading", description: "Streamlined practical evaluation process.", icon: "✅" },
+              {
+                title: "Practical Review",
+                description: "View and assess student-submitted practicals with ease.",
+                icon: "📝",
+              },
+              {
+                title: "GitHub Integration",
+                description: "Access and evaluate code directly from student GitHub repos.",
+                icon: "💻",
+              },
+              {
+                title: "Marking Made Simple",
+                description: "Assign marks quickly with a streamlined grading system.",
+                icon: "⭐",
+              },
             ].map((feature, index) => (
               <motion.div
                 key={index}
@@ -72,11 +78,11 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
               >
-                <Card className="border-none shadow-md hover:shadow-lg transition-shadow">
+                <Card className="border-none shadow-lg hover:shadow-xl transition-shadow bg-gray-50">
                   <CardContent className="pt-6 text-center">
                     <div className="text-4xl mb-4">{feature.icon}</div>
-                    <h3 className="text-xl font-semibold mb-2 text-foreground">{feature.title}</h3>
-                    <p className="text-muted-foreground">{feature.description}</p>
+                    <h3 className="text-xl font-semibold mb-2 text-gray-800">{feature.title}</h3>
+                    <p className="text-gray-600">{feature.description}</p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -85,13 +91,40 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="bg-primary text-primary-foreground py-8">
+      {/* Call-to-Action Section */}
+      <section className="bg-blue-50 py-16">
+        <div className="container mx-auto px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h3 className="text-2xl font-semibold text-gray-800 mb-4">
+              Ready to Streamline Your Teaching?
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-xl mx-auto">
+              Join EduTrack today and take control of your classroom management with a professional, teacher-focused dashboard.
+            </p>
+            <Button
+              onClick={() => setShowLoginModal(true)}
+              size="lg"
+              className="bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Start Now
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 text-white py-8">
         <div className="container mx-auto px-6 text-center">
           <p>© 2025 EduTrack. All rights reserved.</p>
         </div>
       </footer>
 
+      {/* Login Modal */}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
     </div>
-  )
+  );
 }
