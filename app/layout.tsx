@@ -30,16 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} relative`}>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="fixed top-4 right-4 z-50"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-        >
-          {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-        </Button>
         {children}
       </body>
     </html>
   )
 }
+
+
+
+
